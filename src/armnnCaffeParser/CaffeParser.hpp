@@ -57,6 +57,7 @@ protected:
     void ParseInputLayer(const caffe::LayerParameter& layerParam);
     void ParseConvLayer(const caffe::LayerParameter& layerParam);
     void ParsePoolingLayer(const caffe::LayerParameter& layerParam);
+    void ParsePReluLayer(const caffe::LayerParameter& layerParam);
     void ParseReluLayer(const caffe::LayerParameter& layerParam);
     void ParseLRNLayer(const caffe::LayerParameter& layerParam);
     void ParseInnerProductLayer(const caffe::LayerParameter& layerParam);

@@ -245,6 +245,7 @@ const std::map<std::string, CaffeParserBase::OperationParsingFunction>
     { "Input",        &CaffeParserBase::ParseInputLayer },
     { "Convolution",  &CaffeParserBase::ParseConvLayer },
     { "Pooling",      &CaffeParserBase::ParsePoolingLayer },
+    { "PReLU",        &CaffeParserBase::ParsePReluLayer },
     { "ReLU",         &CaffeParserBase::ParseReluLayer },
     { "LRN",          &CaffeParserBase::ParseLRNLayer },
     { "InnerProduct", &CaffeParserBase::ParseInnerProductLayer },
@@ -998,7 +999,48 @@ void CaffeParserBase::ParsePoolingLayer(const LayerParameter& layerParam)
     poolingLayer->GetOutputSlot(0).SetTensorInfo(outputInfo);
     SetArmnnOutputSlotForCaffeTop(layerParam.top(0), poolingLayer->GetOutputSlot(0));
 }
+void CaffeParserBase::ParsePReluLayer(const LayerParameter& layerParam)
+{
+    ValidateNumInputsOutputs(layerParam, 1, 1);
 
+    const string& name = layerParam.name();
+    const TensorInfo& inputInfo = GetArmnnOutputSlotForCaffeTop(layerParam.bottom(0)).GetTensorInfo();
+
+
+    armnn::TensorInfo info2 = inputInfo;
+	armnn::TensorShape shape2 = info2.GetShape();
+	std::cout << "Tensor: " << name << std::endl;
+	std::cout << " -  " << "TensorInfo: Dims():" << shape2.GetNumDimensions() << std::endl;
+	std::cout << " -  " << "TensorInfo: NumElements():" << shape2.GetNumElements() << std::endl;
+	std::cout << " -  " << "TensorInfo: GetShape():" << shape2 << std::endl;
+	std::cout << " -  " << "TensorInfo: GetNumBytes():" << info2.GetNumBytes() << std::endl;
+	    IConnectableLayer* const newLayer = m_Network->AddPreluLayer(name.c_str());
+  
+    // connect the alpha values through a constTensor to the 2nd input (1)
+    const BlobProto& blob = layerParam.blobs(boost::numeric_cast<int>(0));
+    size_t blobSize = boost::numeric_cast<size_t>(blob.data_size());
+
+    unsigned int shape[]  = {static_cast<unsigned int>(blobSize)};
+    vector<float> alphaData( blobSize);
+
+    std::cout<<"blobsize:" << blobSize  << " batchSize:"<< inputInfo.GetShape()[0] << " PreluInput0 size:" << inputInfo.GetShape()[1] << std::endl;
+    GetDataFromBlob(layerParam, alphaData, 0);
+    TensorInfo alphaOutputInfo(1, shape, armnn::DataType::Float32);
+    ConstTensor alpha(alphaOutputInfo, alphaData);
+    std::string nameAlpha = "alphaData_";
+    nameAlpha+=name.c_str();
+    IConnectableLayer* const alphaLayer =  m_Network->AddConstantLayer(alpha, nameAlpha.c_str());
+    alphaLayer->GetOutputSlot(0).Connect(newLayer->GetInputSlot(1));
+
+    alphaLayer->GetOutputSlot(0).SetTensorInfo(alphaOutputInfo);
+    newLayer->GetInputSlot(1).GetConnection()->SetTensorInfo(alphaOutputInfo);
+
+    // connect the first input
+    GetArmnnOutputSlotForCaffeTop(layerParam.bottom(0)).Connect(newLayer->GetInputSlot(0));
+    newLayer->GetOutputSlot(0).SetTensorInfo(inputInfo);
+    SetArmnnOutputSlotForCaffeTop(layerParam.top(0), newLayer->GetOutputSlot(0));
+    std::cout<<"\n"<<"PRELU_OVER"<<"\n";
+}
 void CaffeParserBase::ParseReluLayer(const LayerParameter& layerParam)
 {
     ValidateNumInputsOutputs(layerParam, 1, 1);
